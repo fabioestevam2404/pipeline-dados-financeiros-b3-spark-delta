@@ -1,0 +1,127 @@
+{
+  "name": "Pipeline B3 — Ingestão Diária de Cotações",
+  "description": "Pipeline completo: Alpha Vantage → Bronze → Silver → Gold → Visualização. Executado diariamente após fechamento do pregão.",
+  "email_notifications": {
+    "on_failure": [],
+    "no_alert_for_skipped_runs": false
+  },
+  "schedule": {
+    "quartz_cron_expression": "0 0 20 * * ?",
+    "timezone_id": "America/Sao_Paulo",
+    "pause_status": "UNPAUSED"
+  },
+  "max_concurrent_runs": 1,
+  "tasks": [
+    {
+      "task_key": "config",
+      "description": "Carrega parâmetros globais e inicializa SparkSession com Delta Lake",
+      "notebook_task": {
+        "notebook_path": "/Workspace/ProjetoAPI_cotações/Config/config",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "timeout_seconds": 120
+    },
+    {
+      "task_key": "helpers",
+      "description": "Carrega funções utilitárias do pipeline",
+      "depends_on": [
+        { "task_key": "config" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/ProjetoAPI_cotações/Utils/helpers",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "timeout_seconds": 120
+    },
+    {
+      "task_key": "ingestao_bronze",
+      "description": "Busca cotações na Alpha Vantage e grava na camada Bronze (Delta Lake)",
+      "depends_on": [
+        { "task_key": "helpers" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/ProjetoAPI_cotações/Bronze/ingestao_api_alpha_spark",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "timeout_seconds": 600
+    },
+    {
+      "task_key": "transformacao_silver",
+      "description": "Limpeza, enriquecimento e cálculo de indicadores técnicos (SMA, volatilidade, retorno)",
+      "depends_on": [
+        { "task_key": "ingestao_bronze" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/ProjetoAPI_cotações/Silver/transformacao_silver",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "timeout_seconds": 600
+    },
+    {
+      "task_key": "agregacao_gold",
+      "description": "Agrega métricas da Silver em 4 tabelas Gold para dashboard: resumo_diario, performance_mensal, ranking_acoes, sinais_tecnicos",
+      "depends_on": [
+        { "task_key": "transformacao_silver" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/ProjetoAPI_cotações/Gold/agregacao_gold",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "timeout_seconds": 600
+    },
+    {
+      "task_key": "visualizacao",
+      "description": "Análises Spark SQL: resumo estatístico, ranking, volatilidade e sinais de cruzamento",
+      "depends_on": [
+        { "task_key": "agregacao_gold" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/ProjetoAPI_cotações/Visualizacao/view_dados_spark",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "timeout_seconds": 300
+    },
+    {
+      "task_key": "testes",
+      "description": "Validação do pipeline: testes unitários e de integração",
+      "depends_on": [
+        { "task_key": "visualizacao" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/ProjetoAPI_cotações/tests/test_pipeline",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "pipeline_cluster",
+      "timeout_seconds": 300
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "pipeline_cluster",
+      "new_cluster": {
+        "cluster_name": "pipeline-b3-cluster",
+        "spark_version": "13.3.x-scala2.12",
+        "node_type_id": "m5.xlarge",
+        "num_workers": 1,
+        "spark_conf": {
+          "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
+          "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+          "spark.databricks.delta.preview.enabled": "true"
+        },
+        "aws_attributes": {
+          "availability": "ON_DEMAND",
+          "ebs_volume_type": "GENERAL_PURPOSE_SSD",
+          "ebs_volume_count": 1,
+          "ebs_volume_size": 32
+        },
+        "autotermination_minutes": 20
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show:*)",
+      "Read(//c/hadoop/**)",
+      "Bash(echo \"HADOOP_HOME=$HADOOP_HOME\")",
+      "Skill(run-pipeline)",
+      "Skill(run-pipeline:*)",
+      "Bash(python gerar_pbit.py --server dbc-999a1703-9e43.cloud.databricks.com --http-path /sql/1.0/warehouses/810a5e82b5ca7158)",
+      "Bash(python -c \"import zipfile; z = zipfile.ZipFile\\(''c:/Projetos/Ingestão_Cotações_B3_Spark_Delta_Lake/PowerBI/Dashboard_B3_Cotacoes.pbit''\\); print\\(''Arquivos no .pbit:''\\); [print\\('' '', f\\) for f in z.namelist\\(\\)]\")",
+      "Bash(powershell -command \"Get-ItemProperty HKLM:\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\* | Where-Object {$_DisplayName -like ''*Power BI*''} | Select-Object DisplayName, DisplayVersion\")",
+      "Bash(powershell -command \"Get-ItemProperty HKLM:\\\\Software\\\\WOW6432Node\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\* | Where-Object {$_DisplayName -like ''*Power BI*''} | Select-Object DisplayName, DisplayVersion\")",
+      "Bash(powershell -command \"Get-AppxPackage | Where-Object {$_Name -like ''*PowerBI*''} | Select-Object Name, Version\")"
+    ]
+  }
+}

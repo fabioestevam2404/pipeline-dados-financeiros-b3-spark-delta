@@ -1,0 +1,180 @@
+{
+  "titulo": "Relatorio Executivo — Pipeline Financeiro Brasileiro",
+  "versao": "1.0.0",
+  "gerado_em": "2026-03-22T14:03:22.238759",
+  "periodo_analise": {
+    "inicio": "2015-01-01",
+    "fim": "2026-03-22"
+  },
+  "rating_risco_sistemico": {
+    "score_risco": 40,
+    "rating": "ELEVADO",
+    "interpretacao": "Pressões significativas. Medidas macroprudenciais podem ser necessárias."
+  },
+  "resumo_executivo": {
+    "pd_pf_atual": 3.45,
+    "pd_pj_atual": 2.53,
+    "el_total_base_bi": 69.58,
+    "el_ponderado_bi": 106.93,
+    "insights_macro": [
+      "ipca_mensal: valor=0.7000, tendencia de baixa (slope=-0.006908/mes).",
+      "desemprego: valor=5.4000, tendencia de baixa (slope=-0.085976/mes).",
+      "cambio_usd_brl: valor=5.2006, tendencia de alta (slope=+0.002026/mes).",
+      "selic_meta: valor=0.8300, tendencia de alta (slope=+0.016039/mes).",
+      "Correlacao Pearson SELIC x IPCA: -0.046.",
+      "Correlacao Pearson IPCA x Cambio: 0.012."
+    ],
+    "macro_atual": {
+      "selic_meta": 0.83,
+      "ipca_mensal": 0.7,
+      "cambio_usd_brl": 5.2006,
+      "desemprego": 5.4,
+      "pib_variacao": 1042272.6
+    }
+  },
+  "analise_macro": {
+    "periodo": {
+      "inicio": "2015-01-01",
+      "fim": "2026-03-22"
+    },
+    "total_obs_bcb": 936,
+    "insights": [
+      "ipca_mensal: valor=0.7000, tendencia de baixa (slope=-0.006908/mes).",
+      "desemprego: valor=5.4000, tendencia de baixa (slope=-0.085976/mes).",
+      "cambio_usd_brl: valor=5.2006, tendencia de alta (slope=+0.002026/mes).",
+      "selic_meta: valor=0.8300, tendencia de alta (slope=+0.016039/mes).",
+      "Correlacao Pearson SELIC x IPCA: -0.046.",
+      "Correlacao Pearson IPCA x Cambio: 0.012."
+    ],
+    "series_analisadas": [
+      "cambio_usd_brl",
+      "desemprego",
+      "inadimplencia_pf",
+      "inadimplencia_pj",
+      "ipca_mensal",
+      "pib_variacao",
+      "selic_meta"
+    ],
+    "stl_series": [
+      "ipca_mensal",
+      "desemprego",
+      "cambio_usd_brl",
+      "selic_meta"
+    ]
+  },
+  "modelos_pd": {
+    "pd_pf": {
+      "pd_atual_pct": 0.0345,
+      "pd_atual_percent": 3.45,
+      "melhor_modelo": "ridge",
+      "n_obs_treino": 96,
+      "metricas": {
+        "ridge": {
+          "mae_treino": 0.0822,
+          "mae_teste": 0.3751,
+          "r2_treino": 0.9536,
+          "r2_teste": -0.3609
+        },
+        "gbm": {
+          "mae_treino": 0.0087,
+          "mae_teste": 0.3599,
+          "r2_treino": 0.9995,
+          "r2_teste": -0.39
+        }
+      }
+    },
+    "pd_pj": {
+      "pd_atual_pct": 0.0253,
+      "pd_atual_percent": 2.53,
+      "melhor_modelo": "gbm",
+      "n_obs_treino": 96,
+      "metricas": {
+        "ridge": {
+          "mae_treino": 0.1109,
+          "mae_teste": 0.1809,
+          "r2_treino": 0.9658,
+          "r2_teste": -1.6126
+        },
+        "gbm": {
+          "mae_treino": 0.0097,
+          "mae_teste": 0.0812,
+          "r2_treino": 0.9998,
+          "r2_teste": 0.496
+        }
+      }
+    }
+  },
+  "stress_testing": {
+    "data_referencia": "2026-03-22",
+    "metodologia": "Basel III IRB Simplified + Macro-Stress",
+    "el_ponderado_bi_brl": 106.93,
+    "macro_base": {
+      "selic_meta": 0.83,
+      "ipca_mensal": 0.7,
+      "cambio_usd_brl": 5.2006,
+      "desemprego": 5.4,
+      "pib_variacao": 1042272.6
+    },
+    "cenarios": {
+      "base": {
+        "nome": "Base (condições atuais)",
+        "el_total_bi": 69.58,
+        "delta_vs_base_bi": 0.0,
+        "delta_vs_base_pct": 0.0,
+        "capital_minimo_bi": 199.84,
+        "probabilidade": 0.6
+      },
+      "adverso": {
+        "nome": "Adverso (recessão moderada)",
+        "el_total_bi": 131.34,
+        "delta_vs_base_bi": 61.76,
+        "delta_vs_base_pct": 88.76,
+        "capital_minimo_bi": 318.03,
+        "probabilidade": 0.3
+      },
+      "severo": {
+        "nome": "Severo (crise sistêmica)",
+        "el_total_bi": 257.76,
+        "delta_vs_base_bi": 188.18,
+        "delta_vs_base_pct": 270.45,
+        "capital_minimo_bi": 536.13,
+        "probabilidade": 0.1
+      }
+    }
+  },
+  "artefatos_gerados": {
+    "stress_testing": [
+      "c:\\Projetos\\Ingestão_Cotações_B3_Spark_Delta_Lake\\models\\stress_20260322.json"
+    ],
+    "macro_analise": [
+      "c:\\Projetos\\Ingestão_Cotações_B3_Spark_Delta_Lake\\docs\\reports\\macro_analise_20260322.json"
+    ],
+    "pd_pf_metricas": [
+      "c:\\Projetos\\Ingestão_Cotações_B3_Spark_Delta_Lake\\models\\pd_pf_20260322_metricas.json"
+    ],
+    "pd_pj_metricas": [
+      "c:\\Projetos\\Ingestão_Cotações_B3_Spark_Delta_Lake\\models\\pd_pj_20260322_metricas.json"
+    ],
+    "silver_bcb": [
+      "c:\\Projetos\\Ingestão_Cotações_B3_Spark_Delta_Lake\\data\\silver\\bcb"
+    ],
+    "silver_b3": [
+      "c:\\Projetos\\Ingestão_Cotações_B3_Spark_Delta_Lake\\data\\silver\\b3"
+    ],
+    "gold": [
+      "c:\\Projetos\\Ingestão_Cotações_B3_Spark_Delta_Lake\\data\\gold"
+    ]
+  },
+  "pipeline": {
+    "etapas": {},
+    "log_disponivel": false
+  },
+  "notas_metodologicas": [
+    "Modelos PD treinados com Gradient Boosting (GBM) e Ridge Regression.",
+    "Features: SELIC, IPCA, cambio, PIB, desemprego com lags de 1 e 3 meses.",
+    "LGD calibrada por segmento com ajuste macroeconomico (Basel III).",
+    "Stress testing com 3 cenarios: Base (60%), Adverso (30%), Severo (10%).",
+    "EAD estimado para carteira representativa: R$ 5,0 tri (PF + PJ).",
+    "Decomposicao STL com period=12 meses para series mensais."
+  ]
+}

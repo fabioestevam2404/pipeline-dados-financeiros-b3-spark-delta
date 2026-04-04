@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B3 · Ingestão de Ações com Spark + Delta Lake</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #05080f;
+  --surface:   #090d16;
+  --card:      #0e1420;
+  --card2:     #121a28;
+  --border:    #1a2840;
+  --border2:   #243450;
+  --gold:      #e8b84b;
+  --gold-dim:  #a07820;
+  --gold-glow: rgba(232,184,75,0.12);
+  --teal:      #00d4b0;
+  --teal-dim:  rgba(0,212,176,0.12);
+  --blue:      #4c8eff;
+  --blue-dim:  rgba(76,142,255,0.1);
+  --purple:    #9b6dff;
+  --purple-dim:rgba(155,109,255,0.1);
+  --orange:    #ff8c42;
+  --orange-dim:rgba(255,140,66,0.1);
+  --red:       #ff5c5c;
+  --green:     #4ade80;
+  --text:      #dce8f8;
+  --muted:     #6b84a0;
+  --dim:       #3a4d65;
+  --code-bg:   #060b14;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;
+  line-height:1.65;
+  overflow-x:hidden;
+}
+
+/* ─── ATMOSPHERIC BG ─── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 70% 50% at 10% 15%, rgba(0,212,176,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 70% at 90% 85%, rgba(76,142,255,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(232,184,75,0.03) 0%, transparent 70%);
+  pointer-events:none;z-index:0;
+}
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(26,40,64,0.25) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26,40,64,0.25) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;z-index:0;
+}
+
+.z1{position:relative;z-index:1}
+.container{max-width:1120px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+
+/* ─── HEADER ─── */
+header{
+  border-bottom:1px solid var(--border);
+  padding:20px 0;
+  background:rgba(5,8,15,0.8);
+  backdrop-filter:blur(16px);
+  position:sticky;top:0;z-index:200;
+}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.hdr-brand{display:flex;align-items:center;gap:14px}
+.hdr-icon{
+  width:38px;height:38px;border-radius:6px;
+  background:linear-gradient(135deg, rgba(0,212,176,0.2), rgba(76,142,255,0.15));
+  border:1px solid rgba(0,212,176,0.3);
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+}
+.hdr-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text);letter-spacing:-0.3px}
+.hdr-sub{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px}
+.hdr-tags{display:flex;gap:8px;flex-wrap:wrap}
+.htag{
+  font-family:'Space Mono',monospace;font-size:10px;padding:4px 10px;border-radius:2px;border:1px solid;
+}
+.htag-teal{background:var(--teal-dim);border-color:rgba(0,212,176,0.35);color:var(--teal)}
+.htag-blue{background:var(--blue-dim);border-color:rgba(76,142,255,0.35);color:var(--blue)}
+.htag-gold{background:var(--gold-glow);border-color:rgba(232,184,75,0.35);color:var(--gold)}
+
+/* ─── HERO ─── */
+.hero{padding:64px 0 48px;text-align:center}
+.hero-tag{
+  display:inline-block;
+  font-family:'Space Mono',monospace;font-size:10px;
+  color:var(--teal);letter-spacing:3px;text-transform:uppercase;
+  border:1px solid rgba(0,212,176,0.2);background:var(--teal-dim);
+  padding:5px 16px;border-radius:2px;margin-bottom:24px;
+}
+.hero h1{
+  font-family:'Syne',sans-serif;font-size:clamp(30px,5vw,54px);font-weight:800;
+  line-height:1.08;letter-spacing:-2px;
+  background:linear-gradient(130deg, #fff 0%, var(--gold) 35%, #c87a10 70%, var(--teal) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:18px;
+}
+.hero-desc{color:var(--muted);font-size:15px;max-width:580px;margin:0 auto 36px}
+
+/* ─── STAT ROW ─── */
+.stat-row{
+  display:flex;justify-content:center;gap:1px;
+  background:var(--border);border:1px solid var(--border);
+  border-radius:4px;overflow:hidden;max-width:700px;margin:0 auto;
+}
+.stat{
+  background:var(--card);padding:18px 24px;text-align:center;flex:1;
+}
+.stat-val{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--gold);line-height:1;margin-bottom:4px}
+.stat-lbl{font-size:11px;color:var(--muted)}
+
+/* ─── NAV ─── */
+.nav-pills{
+  display:flex;gap:4px;overflow-x:auto;padding:4px 0;margin-bottom:0;
+  scrollbar-width:none;
+}
+.nav-pills::-webkit-scrollbar{display:none}
+.npill{
+  font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);
+  text-decoration:none;padding:6px 14px;border-radius:2px;
+  border:1px solid transparent;white-space:nowrap;
+  transition:all .2s;
+}
+.npill:hover{background:var(--card2);border-color:var(--border2);color:var(--text)}
+
+/* ─── SECTION ─── */
+.section{padding:64px 0}
+.section-alt{background:rgba(0,0,0,0.25);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.sec-head{display:flex;align-items:center;gap:12px;margin-bottom:36px}
+.sec-num{
+  font-family:'Space Mono',monospace;font-size:10px;
+  color:var(--gold);background:var(--gold-glow);
+  border:1px solid rgba(232,184,75,0.25);
+  padding:4px 10px;border-radius:2px;flex-shrink:0;
+}
+.sec-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.5px}
+.sec-head::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ─── OBJECTIVE BOX ─── */
+.obj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;margin-bottom:28px}
+.obj-card{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;
+  padding:20px;display:flex;gap:14px;align-items:flex-start;
+  transition:border-color .2s,transform .2s;position:relative;overflow:hidden;
+}
+.obj-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.obj-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent,var(--gold))}
+.obj-icon{font-size:22px;flex-shrink:0;margin-top:2px}
+.obj-num{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px}
+.obj-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:6px}
+.obj-desc{color:var(--muted);font-size:12px;line-height:1.5}
+
+/* ─── FILE TREE ─── */
+.tree-wrap{
+  background:var(--code-bg);border:1px solid var(--border);border-radius:4px;
+  padding:28px 24px;font-family:'Space Mono',monospace;font-size:12px;
+  line-height:2;overflow-x:auto;
+}
+.tree-root{color:var(--teal);font-weight:700;font-size:13px}
+.tree-dir{color:var(--blue)}
+.tree-file{color:var(--gold)}
+.tree-comment{color:var(--dim);font-size:10px}
+.tree-indent{padding-left:20px;border-left:1px solid var(--border);margin-left:8px}
+
+/* ─── CODE BLOCKS ─── */
+.code-file{
+  background:var(--code-bg);border:1px solid var(--border);border-radius:4px;
+  overflow:hidden;margin-bottom:24px;
+}
+.code-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px;border-bottom:1px solid var(--border);
+  background:rgba(255,255,255,0.02);
+}
+.code-fname{font-family:'Space Mono',monospace;font-size:11px;color:var(--text)}
+.code-lang{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);padding:3px 8px;background:rgba(255,255,255,0.04);border-radius:2px}
+.code-dots{display:flex;gap:5px}
+.cd{width:10px;height:10px;border-radius:50%}
+.cd-r{background:#ff5f57}.cd-y{background:#febc2e}.cd-g{background:#28c840}
+pre{
+  padding:20px 22px;overflow-x:auto;
+  font-family:'Space Mono',monospace;font-size:11.5px;line-height:1.7;
+  color:#9fbbd4;
+}
+/* Syntax colors */
+.kw{color:#9b6dff}       /* keywords */
+.fn{color:#4c8eff}       /* functions */
+.str{color:#4ade80}      /* strings */
+.cm{color:#3a5060;font-style:italic} /* comments */
+.num{color:#ff8c42}      /* numbers */
+.cls{color:#e8b84b}      /* classes */
+.var{color:#00d4b0}      /* variables */
+.op{color:#7a9cb8}       /* operators */
+.dec{color:#ff8c42}      /* decorators */
+.param{color:#dce8f8}    /* params */
+
+/* ─── PIPELINE STEPS ─── */
+.pipe-steps{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:0;background:var(--card);border:1px solid var(--border);border-radius:4px;overflow:hidden;
+}
+.pipe-step{
+  padding:20px 14px;border-right:1px solid var(--border);text-align:center;
+  position:relative;
+}
+.pipe-step:last-child{border-right:none}
+.pipe-step::after{
+  content:'→';position:absolute;right:-10px;top:50%;transform:translateY(-50%);
+  color:var(--dim);font-size:14px;z-index:2;
+}
+.pipe-step:last-child::after{display:none}
+.ps-num{font-family:'Space Mono',monospace;font-size:9px;color:var(--dim);margin-bottom:6px}
+.ps-icon{font-size:22px;margin-bottom:8px}
+.ps-name{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;margin-bottom:4px}
+.ps-tech{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);line-height:1.6}
+
+/* ─── ARCH LAYERS ─── */
+.arch{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;overflow:hidden;
+}
+.arch-layer{
+  padding:18px 22px;border-bottom:1px solid var(--border);
+}
+.arch-layer:last-child{border-bottom:none}
+.al-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.al-badge{
+  font-family:'Space Mono',monospace;font-size:9px;padding:3px 8px;border-radius:2px;border:1px solid;white-space:nowrap;
+}
+.al-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700}
+.al-desc{font-size:11px;color:var(--muted);margin-top:1px}
+.al-comps{display:flex;flex-wrap:wrap;gap:8px}
+.al-comp{
+  background:rgba(0,0,0,0.35);border:1px solid var(--border);border-radius:3px;
+  padding:9px 12px;font-size:11px;display:flex;align-items:center;gap:8px;
+  transition:border-color .2s;
+}
+.al-comp:hover{border-color:var(--border2)}
+.al-comp .ci{font-size:15px}
+.al-comp .cn{font-family:'Space Mono',monospace;font-size:10px;color:var(--text)}
+.al-comp .cd{font-size:10px;color:var(--muted)}
+
+/* ─── BENEFITS ─── */
+.ben-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.ben-card{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;
+  padding:22px;position:relative;overflow:hidden;
+  transition:border-color .2s;
+}
+.ben-card:hover{border-color:var(--border2)}
+.ben-accent{
+  position:absolute;top:0;left:0;right:0;height:2px;
+}
+.ben-icon{font-size:26px;margin-bottom:10px}
+.ben-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:8px}
+.ben-desc{color:var(--muted);font-size:12px;line-height:1.55}
+
+/* ─── TABLE ─── */
+.data-table{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;overflow:hidden;
+  width:100%;
+}
+.data-table table{width:100%;border-collapse:collapse;font-size:12px}
+.data-table th{
+  font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);
+  text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);
+  text-transform:uppercase;letter-spacing:1px;background:rgba(0,0,0,0.2);
+}
+.data-table td{padding:10px 16px;border-bottom:1px solid rgba(26,40,64,0.5);vertical-align:top}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:rgba(255,255,255,0.015)}
+.td-col{font-family:'Space Mono',monospace;font-size:10px;color:var(--teal)}
+.td-type{font-family:'Space Mono',monospace;font-size:10px;color:var(--purple)}
+.td-src{color:var(--muted);font-size:11px}
+.td-desc{color:var(--text);font-size:11px}
+
+/* ─── NOTE / CALLOUT ─── */
+.callout{
+  border-radius:4px;padding:18px 20px;margin-top:20px;
+  border-left:3px solid;
+}
+.callout-gold{background:var(--gold-glow);border-color:var(--gold)}
+.callout-teal{background:var(--teal-dim);border-color:var(--teal)}
+.callout-blue{background:var(--blue-dim);border-color:var(--blue)}
+.callout h5{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;margin-bottom:6px}
+.callout-gold h5{color:var(--gold)}
+.callout-teal h5{color:var(--teal)}
+.callout-blue h5{color:var(--blue)}
+.callout p{font-size:12px;color:var(--muted);line-height:1.55}
+
+/* ─── FLOW SVG WRAPPER ─── */
+.flow-wrap{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;
+  padding:32px 24px;overflow-x:auto;
+}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:640px){
+  .pipe-steps{grid-template-columns:1fr}
+  .pipe-step{border-right:none;border-bottom:1px solid var(--border)}
+  .pipe-step::after{content:'↓';right:auto;bottom:-12px;left:50%;transform:translateX(-50%)}
+  .obj-grid,.ben-grid{grid-template-columns:1fr}
+}
+
+/* ─── ANIMATIONS ─── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scanLine{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+.fade-up{animation:fadeUp .5s ease both}
+
+footer{border-top:1px solid var(--border);padding:24px 0}
+.ftr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.ftr span{font-family:'Space Mono',monospace;font-size:10px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="container">
+    <div class="hdr">
+      <div class="hdr-brand">
+        <div class="hdr-icon">🔶</div>
+        <div>
+          <div class="hdr-title">B3 · Ingestão de Ações com Spark + Delta Lake</div>
+          <div class="hdr-sub">// DATA ENGINEERING · ALPHA VANTAGE API · PYSPARK · DELTA LAKE</div>
+        </div>
+      </div>
+      <div class="hdr-tags">
+        <span class="htag htag-teal">PYSPARK</span>
+        <span class="htag htag-blue">DELTA LAKE</span>
+        <span class="htag htag-gold">B3 · AÇÕES</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="container">
+  <div class="hero fade-up">
+    <div class="hero-tag">// DOCUMENTAÇÃO TÉCNICA & PEDAGÓGICA</div>
+    <h1>Cotações da B3<br>em Tempo Real</h1>
+    <p class="hero-desc">Ingestão de ações via Alpha Vantage API, processamento distribuído com PySpark e persistência em Delta Lake — do raw ao analítico.</p>
+
+    <div class="stat-row">
+      <div class="stat"><div class="stat-val">5</div><div class="stat-lbl">Tickers Monitorados</div></div>
+      <div class="stat"><div class="stat-val">3</div><div class="stat-lbl">Notebooks / Módulos</div></div>
+      <div class="stat"><div class="stat-val">∆</div><div class="stat-lbl">Delta Lake ACID</div></div>
+      <div class="stat"><div class="stat-val">100d</div><div class="stat-lbl">Histórico Ingerido</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- NAV PILLS -->
+<div style="border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 0;background:rgba(5,8,15,0.6);backdrop-filter:blur(8px)">
+  <div class="container">
+    <div class="nav-pills">
+      <a class="npill" href="#objetivos">Objetivos</a>
+      <a class="npill" href="#estrutura">Estrutura</a>
+      <a class="npill" href="#config">Config</a>
+      <a class="npill" href="#bronze">Bronze · Ingestão</a>
+      <a class="npill" href="#visualizacao">Visualização</a>
+      <a class="npill" href="#fluxograma">Fluxograma</a>
+      <a class="npill" href="#schema">Schema</a>
+      <a class="npill" href="#beneficios">Benefícios</a>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 1: OBJETIVOS ─── -->
+<div class="section" id="objetivos">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2 class="sec-title">Objetivos do Projeto</h2>
+    </div>
+
+    <div class="obj-grid">
+      <div class="obj-card" style="--accent:var(--teal)">
+        <div class="obj-icon">📡</div>
+        <div>
+          <div class="obj-num">OBJ 01</div>
+          <div class="obj-name">Ingestão via API</div>
+          <div class="obj-desc">Consumir cotações diárias de ações da B3 usando a <strong style="color:var(--teal)">Alpha Vantage API</strong>, com suporte a múltiplos tickers e tratamento de rate limits.</div>
+        </div>
+      </div>
+      <div class="obj-card" style="--accent:var(--blue)">
+        <div class="obj-icon">⚡</div>
+        <div>
+          <div class="obj-num">OBJ 02</div>
+          <div class="obj-name">Processamento Distribuído</div>
+          <div class="obj-desc">Transformar dados Pandas em <strong style="color:var(--blue)">DataFrames PySpark</strong>, introduzindo conceitos de Big Data e processamento distribuído escalável.</div>
+        </div>
+      </div>
+      <div class="obj-card" style="--accent:var(--orange)">
+        <div class="obj-icon">🔶</div>
+        <div>
+          <div class="obj-num">OBJ 03</div>
+          <div class="obj-name">Persistência Delta Lake</div>
+          <div class="obj-desc">Armazenar os dados em formato <strong style="color:var(--orange)">Delta Lake</strong> com suporte a ACID transactions, time travel e schema evolution.</div>
+        </div>
+      </div>
+      <div class="obj-card" style="--accent:var(--purple)">
+        <div class="obj-icon">📊</div>
+        <div>
+          <div class="obj-num">OBJ 04</div>
+          <div class="obj-name">Análise SQL com Spark</div>
+          <div class="obj-desc">Expor os dados via <strong style="color:var(--purple)">Spark SQL</strong> para consultas analíticas — médias, tendências e comparações por ativo.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-gold">
+      <h5>⚡ API UTILIZADA</h5>
+      <p>Alpha Vantage — <strong style="color:var(--gold)">https://www.alphavantage.co/</strong> — oferece dados históricos diários via endpoint <code style="color:var(--teal)">TIME_SERIES_DAILY</code>. Ações da B3 são identificadas com sufixo <code style="color:var(--teal)">.SA</code> (ex: PETR4 → PETR4.SA). O plano gratuito suporta 25 requests/dia e 5 requests/minuto.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 2: ESTRUTURA ─── -->
+<div class="section section-alt" id="estrutura">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2 class="sec-title">Estrutura do Projeto</h2>
+    </div>
+
+    <div class="tree-wrap">
+<span class="tree-root">📦 ProjetoAPI_cotacoes</span>
+<div class="tree-indent">
+<span class="tree-dir">📁 Config/</span>
+<div class="tree-indent">
+<span class="tree-file">📄 config</span> <span class="tree-comment">  # Tickers, API Key, caminhos Delta</span>
+</div>
+
+<span class="tree-dir">📁 Bronze/</span>
+<div class="tree-indent">
+<span class="tree-file">📄 ingestao_api_alpha_spark</span> <span class="tree-comment">  # Ingestão + PySpark + Delta write</span>
+</div>
+
+<span class="tree-dir">📁 Visualizacao/</span>
+<div class="tree-indent">
+<span class="tree-file">📄 view_dados_spark</span> <span class="tree-comment">  # Leitura da tabela + Spark SQL</span>
+</div>
+</div>
+    </div>
+
+    <div class="callout callout-teal" style="margin-top:20px">
+      <h5>📐 PADRÃO MEDALLION ARCHITECTURE</h5>
+      <p>O projeto segue o padrão <strong style="color:var(--teal)">Medallion (Bronze → Silver → Gold)</strong>. A camada <strong>Bronze</strong> armazena dados brutos da API sem transformações. Em projetos mais avançados, uma camada Silver adicionaria limpeza e normalização, e a Gold entregaria métricas de negócio prontas para consumo.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 3: CONFIG ─── -->
+<div class="section" id="config">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2 class="sec-title">Config/config — Parâmetros Globais</h2>
+    </div>
+
+    <div class="code-file">
+      <div class="code-header">
+        <div class="code-dots"><div class="cd cd-r"></div><div class="cd cd-y"></div><div class="cd cd-g"></div></div>
+        <span class="code-fname">Config/config</span>
+        <span class="code-lang">PYTHON · DATABRICKS NOTEBOOK</span>
+      </div>
+<pre><span class="cm"># ──────────────────────────────────────────────────────────────────
+# Config/config — Parâmetros globais do projeto
+# Executado com %run nos notebooks filhos
+# ──────────────────────────────────────────────────────────────────</span>
+
+<span class="cm"># Lista de ações que queremos monitorar (B3)</span>
+<span class="var">tickers</span> <span class="op">=</span> [<span class="str">"PETR4"</span>, <span class="str">"VALE3"</span>, <span class="str">"ITUB4"</span>, <span class="str">"BBDC4"</span>, <span class="str">"ABEV3"</span>]
+
+<span class="cm"># Chave da API Alpha Vantage — substituir pela sua chave real</span>
+<span class="var">API_KEY</span> <span class="op">=</span> <span class="str">"SUA_CHAVE_AQUI"</span>
+
+<span class="cm"># Caminho para salvar os dados no Delta Lake (DBFS)</span>
+<span class="var">bronze_path</span> <span class="op">=</span> <span class="str">"dbfs:/FileStore/cotacoes/bronze/"</span>
+
+<span class="cm"># Criar banco de dados Bronze no catálogo Spark</span>
+<span class="op">%</span><span class="kw">sql</span>
+<span class="cls">CREATE DATABASE</span> <span class="kw">IF NOT EXISTS</span> spark_catalog.bronze
+<span class="cls">LOCATION</span> <span class="str">'dbfs:/FileStore/cotacoes/bronze/'</span>;</pre>
+    </div>
+
+    <div class="callout callout-blue">
+      <h5>💡 POR QUE SEPARAR A CONFIG?</h5>
+      <p>Centralizar parâmetros em um único notebook de configuração é uma boa prática de engenharia: qualquer mudança de ticker, chave de API ou caminho é feita em <strong style="color:var(--blue)">um único lugar</strong>, e todos os notebooks que executam <code style="color:var(--teal)">%run Config/config</code> automaticamente herdam as novas configurações — eliminando duplicação e reduzindo risco de inconsistências.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 4: BRONZE ─── -->
+<div class="section section-alt" id="bronze">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2 class="sec-title">Bronze/ingestao_api_alpha_spark — Ingestão + PySpark</h2>
+    </div>
+
+    <div class="code-file">
+      <div class="code-header">
+        <div class="code-dots"><div class="cd cd-r"></div><div class="cd cd-y"></div><div class="cd cd-g"></div></div>
+        <span class="code-fname">Bronze/ingestao_api_alpha_spark</span>
+        <span class="code-lang">PYTHON · PYSPARK · DATABRICKS</span>
+      </div>
+<pre><span class="cm"># ──────────────────────────────────────────────────────────────────
+# Bronze · Ingestão de Cotações B3 via Alpha Vantage → PySpark → Delta
+# ──────────────────────────────────────────────────────────────────</span>
+
+<span class="cm"># Importar configurações centralizadas</span>
+<span class="op">%</span><span class="kw">run</span> /ProjetoAPI_cotacoes/Config/config
+
+<span class="kw">import</span> <span class="cls">requests</span>
+<span class="kw">import</span> <span class="cls">pandas</span> <span class="kw">as</span> <span class="var">pd</span>
+<span class="kw">from</span> <span class="cls">datetime</span> <span class="kw">import</span> <span class="fn">datetime</span>
+<span class="kw">from</span> <span class="cls">pyspark.sql</span> <span class="kw">import</span> <span class="cls">SparkSession</span>
+
+<span class="cm"># Obter sessão Spark ativa (já disponível no Databricks)</span>
+<span class="var">spark</span> <span class="op">=</span> <span class="cls">SparkSession</span>.<span class="fn">builder</span>.<span class="fn">getOrCreate</span>()
+
+
+<span class="kw">def</span> <span class="fn">buscar_dados_acao</span>(<span class="param">ticker_b3</span>: <span class="cls">str</span>, <span class="param">api_key</span>: <span class="cls">str</span>) <span class="op">-></span> <span class="cls">pd.DataFrame</span> <span class="op">|</span> <span class="kw">None</span>:
+    <span class="str">"""
+    Consulta a Alpha Vantage API e retorna um DataFrame Pandas
+    com as cotações diárias do ticker informado.
+
+    Parâmetros:
+        ticker_b3: Código da ação na B3 (ex: 'PETR4')
+        api_key:   Chave da API Alpha Vantage
+
+    Retorna:
+        DataFrame com colunas: data, abertura, alta, baixa,
+        fechamento, volume, ticker, data_ingestao
+        Retorna None em caso de erro.
+    """</span>
+    <span class="cm"># Adicionar sufixo .SA para ações da B3</span>
+    <span class="var">ticker</span> <span class="op">=</span> <span class="var">ticker_b3</span> <span class="op">+</span> <span class="str">".SA"</span>
+
+    <span class="cm"># Montar requisição para o endpoint TIME_SERIES_DAILY</span>
+    <span class="var">params</span> <span class="op">=</span> {
+        <span class="str">"function"</span>:   <span class="str">"TIME_SERIES_DAILY"</span>,
+        <span class="str">"symbol"</span>:     <span class="var">ticker</span>,
+        <span class="str">"apikey"</span>:     <span class="var">api_key</span>,
+        <span class="str">"outputsize"</span>: <span class="str">"compact"</span>  <span class="cm"># últimos 100 dias</span>
+    }
+    <span class="var">response</span> <span class="op">=</span> <span class="cls">requests</span>.<span class="fn">get</span>(<span class="str">"https://www.alphavantage.co/query"</span>, <span class="param">params</span><span class="op">=</span><span class="var">params</span>)
+
+    <span class="cm"># Tratar erros HTTP</span>
+    <span class="kw">if</span> <span class="var">response</span>.<span class="var">status_code</span> <span class="op">!=</span> <span class="num">200</span>:
+        <span class="fn">print</span>(<span class="str">f"[{ticker_b3}] Erro HTTP {response.status_code}"</span>)
+        <span class="kw">return</span> <span class="kw">None</span>
+
+    <span class="var">data</span> <span class="op">=</span> <span class="var">response</span>.<span class="fn">json</span>()
+
+    <span class="cm"># Validar resposta da API (ex: rate limit atingido)</span>
+    <span class="kw">if</span> <span class="str">"Time Series (Daily)"</span> <span class="kw">not in</span> <span class="var">data</span>:
+        <span class="fn">print</span>(<span class="str">f"[{ticker_b3}] Sem dados. Verifique o rate limit ou a chave."</span>)
+        <span class="kw">return</span> <span class="kw">None</span>
+
+    <span class="cm"># Transformar JSON em DataFrame Pandas</span>
+    <span class="var">df</span> <span class="op">=</span> <span class="cls">pd</span>.<span class="cls">DataFrame</span>.<span class="fn">from_dict</span>(
+        <span class="var">data</span>[<span class="str">"Time Series (Daily)"</span>], <span class="param">orient</span><span class="op">=</span><span class="str">"index"</span>
+    )
+    <span class="var">df</span>.<span class="var">columns</span> <span class="op">=</span> [<span class="str">"abertura"</span>, <span class="str">"alta"</span>, <span class="str">"baixa"</span>, <span class="str">"fechamento"</span>, <span class="str">"volume"</span>]
+    <span class="var">df</span>              <span class="op">=</span> <span class="var">df</span>.<span class="fn">astype</span>(<span class="cls">float</span>)
+    <span class="var">df</span>.<span class="var">index</span>        <span class="op">=</span> <span class="cls">pd</span>.<span class="fn">to_datetime</span>(<span class="var">df</span>.<span class="var">index</span>)
+    <span class="var">df</span>              <span class="op">=</span> <span class="var">df</span>.<span class="fn">sort_index</span>()  <span class="cm"># ordem cronológica</span>
+    <span class="var">df</span>[<span class="str">"ticker"</span>]       <span class="op">=</span> <span class="var">ticker_b3</span>
+    <span class="var">df</span>[<span class="str">"data_ingestao"</span>] <span class="op">=</span> <span class="fn">datetime</span>.<span class="fn">now</span>()
+
+    <span class="kw">return</span> <span class="var">df</span>.<span class="fn">reset_index</span>().<span class="fn">rename</span>(<span class="param">columns</span><span class="op">=</span>{<span class="str">"index"</span>: <span class="str">"data"</span>})
+
+
+<span class="cm"># ── Coletar dados para todos os tickers configurados ──────────────</span>
+<span class="var">dfs</span> <span class="op">=</span> []
+
+<span class="kw">for</span> <span class="var">ticker</span> <span class="kw">in</span> <span class="var">tickers</span>:              <span class="cm"># variável do config</span>
+    <span class="fn">print</span>(<span class="str">f"[+] Buscando {ticker}..."</span>)
+    <span class="var">df</span> <span class="op">=</span> <span class="fn">buscar_dados_acao</span>(<span class="var">ticker</span>, <span class="var">API_KEY</span>)
+    <span class="kw">if</span> <span class="var">df</span> <span class="kw">is not None</span>:
+        <span class="var">dfs</span>.<span class="fn">append</span>(<span class="var">df</span>)
+
+<span class="cm"># ── Concatenar e converter para Spark DataFrame ───────────────────</span>
+<span class="kw">if</span> <span class="var">dfs</span>:
+    <span class="var">df_final</span> <span class="op">=</span> <span class="cls">pd</span>.<span class="fn">concat</span>(<span class="var">dfs</span>, <span class="param">ignore_index</span><span class="op">=</span><span class="kw">True</span>)
+    <span class="var">df_spark</span> <span class="op">=</span> <span class="var">spark</span>.<span class="fn">createDataFrame</span>(<span class="var">df_final</span>)
+
+    <span class="cm"># ── Persistir em Delta Lake (append para acumular histórico) ──</span>
+    <span class="var">df_spark</span>.<span class="fn">write</span> \
+        .<span class="fn">format</span>(<span class="str">"delta"</span>) \
+        .<span class="fn">mode</span>(<span class="str">"append"</span>) \
+        .<span class="fn">save</span>(<span class="var">bronze_path</span>)        <span class="cm"># caminho do config</span>
+
+    <span class="fn">print</span>(<span class="str">f"✅ {len(df_final)} registros salvos com sucesso!"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"⚠️  Nenhum dado retornado. Verifique API Key e rate limits."</span>)</pre>
+    </div>
+
+    <div class="callout callout-teal">
+      <h5>🔶 POR QUE APPEND MODE NO DELTA?</h5>
+      <p>O modo <code style="color:var(--teal)">"append"</code> permite acumular o histórico a cada nova execução sem sobrescrever dados anteriores. O Delta Lake garante a consistência com <strong style="color:var(--teal)">transações ACID</strong> — se a escrita falhar no meio, o estado anterior é preservado automaticamente. Para forçar uma recarga completa, basta trocar para <code style="color:var(--teal)">"overwrite"</code>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 5: VISUALIZAÇÃO ─── -->
+<div class="section" id="visualizacao">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <h2 class="sec-title">Visualizacao/view_dados_spark — Análise com Spark SQL</h2>
+    </div>
+
+    <div class="code-file">
+      <div class="code-header">
+        <div class="code-dots"><div class="cd cd-r"></div><div class="cd cd-y"></div><div class="cd cd-g"></div></div>
+        <span class="code-fname">Visualizacao/view_dados_spark</span>
+        <span class="code-lang">PYTHON · SPARK SQL · DATABRICKS</span>
+      </div>
+<pre><span class="kw">from</span> <span class="cls">pyspark.sql</span> <span class="kw">import</span> <span class="cls">SparkSession</span>
+
+<span class="var">spark</span> <span class="op">=</span> <span class="cls">SparkSession</span>.<span class="fn">builder</span>.<span class="fn">getOrCreate</span>()
+
+<span class="cm"># ── 1. Leitura da tabela Bronze via catálogo ──────────────────────</span>
+<span class="var">df_cotacoes</span> <span class="op">=</span> <span class="var">spark</span>.<span class="fn">table</span>(<span class="str">"spark_catalog.bronze.cotacoes"</span>)
+
+<span class="cm"># Registrar como view temporária para uso em células SQL</span>
+<span class="var">df_cotacoes</span>.<span class="fn">createOrReplaceTempView</span>(<span class="str">"cotacoes"</span>)
+
+<span class="cm"># ── 2. Resumo estatístico por ação ────────────────────────────────</span>
+<span class="var">spark</span>.<span class="fn">sql</span>(<span class="str">"""
+    SELECT
+        ticker,
+        MAX(data)         AS ultima_data,
+        MIN(data)         AS primeira_data,
+        ROUND(AVG(fechamento), 2) AS media_fechamento,
+        ROUND(MAX(fechamento), 2) AS max_fechamento,
+        ROUND(MIN(fechamento), 2) AS min_fechamento,
+        COUNT(*)          AS total_registros
+    FROM cotacoes
+    GROUP BY ticker
+    ORDER BY media_fechamento DESC
+"""</span>).<span class="fn">show</span>(<span class="param">truncate</span><span class="op">=</span><span class="kw">False</span>)
+
+<span class="cm"># ── 3. Últimas 5 cotações de cada ação ────────────────────────────</span>
+<span class="var">spark</span>.<span class="fn">sql</span>(<span class="str">"""
+    SELECT *
+    FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY data DESC) AS rn
+        FROM cotacoes
+    )
+    WHERE rn <= 5
+    ORDER BY ticker, data DESC
+"""</span>).<span class="fn">show</span>(<span class="num">25</span>, <span class="param">truncate</span><span class="op">=</span><span class="kw">False</span>)
+
+<span class="cm"># ── 4. Variação diária (%) ────────────────────────────────────────</span>
+<span class="var">spark</span>.<span class="fn">sql</span>(<span class="str">"""
+    SELECT
+        ticker,
+        data,
+        fechamento,
+        LAG(fechamento) OVER (PARTITION BY ticker ORDER BY data) AS fechamento_anterior,
+        ROUND(
+            (fechamento - LAG(fechamento) OVER (PARTITION BY ticker ORDER BY data))
+            / LAG(fechamento) OVER (PARTITION BY ticker ORDER BY data) * 100, 2
+        ) AS variacao_pct
+    FROM cotacoes
+    ORDER BY ticker, data DESC
+    LIMIT 50
+"""</span>).<span class="fn">show</span>(<span class="param">truncate</span><span class="op">=</span><span class="kw">False</span>)</pre>
+    </div>
+
+    <div class="callout callout-blue">
+      <h5>📐 SPARK SQL vs DATAFRAME API</h5>
+      <p>Ambas as abordagens são equivalentes em performance — o Spark compila as duas para o mesmo plano de execução físico (Catalyst Optimizer). O SQL é preferido para análises exploratórias por ser mais legível, enquanto a DataFrame API é mais adequada para pipelines programáticos com lógica condicional e reuso de código.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 6: FLUXOGRAMA ─── -->
+<div class="section section-alt" id="fluxograma">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">06</span>
+      <h2 class="sec-title">Fluxograma — Processo End-to-End</h2>
+    </div>
+
+    <div class="flow-wrap">
+      <svg viewBox="0 0 860 720" width="100%" style="max-width:860px;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#3a4d65"/>
+          </marker>
+          <marker id="arr-teal" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#00d4b0"/>
+          </marker>
+          <marker id="arr-gold" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#e8b84b"/>
+          </marker>
+          <marker id="arr-red" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#ff5c5c"/>
+          </marker>
+          <filter id="gl">
+            <feGaussianBlur stdDeviation="2.5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- BG -->
+        <rect width="860" height="720" fill="#090d16" rx="4"/>
+
+        <!-- STEP 1: Config -->
+        <rect x="290" y="24" width="280" height="48" rx="24" fill="rgba(232,184,75,0.15)" stroke="#e8b84b" stroke-width="1.5"/>
+        <text x="430" y="44" text-anchor="middle" font-family="Space Mono" font-size="11" fill="#e8b84b" font-weight="700">%run Config/config</text>
+        <text x="430" y="60" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#a07820">tickers · API_KEY · bronze_path</text>
+
+        <line x1="430" y1="72" x2="430" y2="102" stroke="#3a4d65" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- STEP 2: Loop -->
+        <rect x="240" y="102" width="380" height="44" rx="3" fill="rgba(76,142,255,0.1)" stroke="rgba(76,142,255,0.4)" stroke-width="1.5"/>
+        <text x="430" y="120" text-anchor="middle" font-family="Space Mono" font-size="10" fill="#4c8eff">FOR ticker IN tickers</text>
+        <text x="430" y="136" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#2a4580">[ PETR4 · VALE3 · ITUB4 · BBDC4 · ABEV3 ]</text>
+
+        <line x1="430" y1="146" x2="430" y2="175" stroke="#3a4d65" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- STEP 3: API Call -->
+        <rect x="255" y="175" width="350" height="52" rx="3" fill="rgba(0,212,176,0.08)" stroke="rgba(0,212,176,0.4)" stroke-width="1.5"/>
+        <text x="430" y="196" text-anchor="middle" font-family="Space Mono" font-size="10" fill="#00d4b0">GET Alpha Vantage API</text>
+        <text x="430" y="209" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#3a8a74">TIME_SERIES_DAILY · {ticker}.SA</text>
+        <text x="430" y="221" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#3a8a74">outputsize=compact (100 dias)</text>
+
+        <line x1="430" y1="227" x2="430" y2="255" stroke="#3a4d65" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- DECISION -->
+        <polygon points="430,255 520,295 430,335 340,295" fill="rgba(155,109,255,0.1)" stroke="rgba(155,109,255,0.5)" stroke-width="1.5"/>
+        <text x="430" y="290" text-anchor="middle" font-family="Space Mono" font-size="10" fill="#9b6dff">STATUS</text>
+        <text x="430" y="304" text-anchor="middle" font-family="Space Mono" font-size="10" fill="#9b6dff">200 + DATA?</text>
+
+        <!-- YES branch right -->
+        <line x1="520" y1="295" x2="600" y2="295" stroke="#00d4b0" stroke-width="1.5" marker-end="url(#arr-teal)"/>
+        <text x="557" y="287" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#00d4b0">SIM</text>
+
+        <!-- NO branch left -->
+        <line x1="340" y1="295" x2="260" y2="295" stroke="#ff5c5c" stroke-width="1.5" marker-end="url(#arr-red)"/>
+        <text x="302" y="287" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#ff5c5c">NÃO</text>
+
+        <!-- NO box -->
+        <rect x="120" y="272" width="140" height="46" rx="3" fill="rgba(255,92,92,0.08)" stroke="rgba(255,92,92,0.4)" stroke-width="1"/>
+        <text x="190" y="293" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#ff5c5c">Log erro /</text>
+        <text x="190" y="306" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#ff5c5c">Próximo ticker</text>
+
+        <!-- YES → Pandas transform -->
+        <rect x="600" y="265" width="220" height="60" rx="3" fill="rgba(255,140,66,0.08)" stroke="rgba(255,140,66,0.35)" stroke-width="1.5"/>
+        <text x="710" y="285" text-anchor="middle" font-family="Space Mono" font-size="10" fill="#ff8c42">Pandas DataFrame</text>
+        <text x="710" y="299" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#7a4010">JSON → DataFrame.from_dict()</text>
+        <text x="710" y="311" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#7a4010">astype(float) · sort · add cols</text>
+
+        <line x1="710" y1="325" x2="710" y2="355" stroke="#3a4d65" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- Append to list -->
+        <rect x="605" y="355" width="210" height="40" rx="3" fill="rgba(76,142,255,0.08)" stroke="rgba(76,142,255,0.35)" stroke-width="1"/>
+        <text x="710" y="372" text-anchor="middle" font-family="Space Mono" font-size="10" fill="#4c8eff">dfs.append(df)</text>
+        <text x="710" y="385" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#2a4580">acumular lista de DataFrames</text>
+
+        <!-- Back to loop (dashed) -->
+        <path d="M710,395 Q710,430 600,430 Q540,430 540,460" fill="none" stroke="rgba(76,142,255,0.3)" stroke-width="1.5" stroke-dasharray="5 3"/>
+        <text x="630" y="445" font-family="Space Mono" font-size="8" fill="rgba(76,142,255,0.5)">próximo ticker</text>
+
+        <!-- Concat + createDataFrame -->
+        <line x1="430" y1="335" x2="430" y2="460" stroke="#3a4d65" stroke-width="1.5" stroke-dasharray="6 3"/>
+        <rect x="250" y="460" width="360" height="50" rx="3" fill="rgba(232,184,75,0.07)" stroke="rgba(232,184,75,0.3)" stroke-width="1.5"/>
+        <text x="430" y="480" text-anchor="middle" font-family="Space Mono" font-size="10" fill="#e8b84b">pd.concat(dfs) → SparkDataFrame</text>
+        <text x="430" y="494" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#7a6020">spark.createDataFrame(df_final)</text>
+        <text x="430" y="505" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#7a6020">inferSchema automático</text>
+
+        <line x1="430" y1="510" x2="430" y2="540" stroke="#e8b84b" stroke-width="1.5" marker-end="url(#arr-gold)"/>
+
+        <!-- Delta Write -->
+        <rect x="230" y="540" width="400" height="60" rx="3" fill="rgba(255,140,66,0.1)" stroke="rgba(255,140,66,0.5)" stroke-width="2" filter="url(#gl)"/>
+        <text x="430" y="562" text-anchor="middle" font-family="Syne, sans-serif" font-size="12" font-weight="700" fill="#ff8c42">WRITE · DELTA LAKE (APPEND)</text>
+        <text x="430" y="576" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#7a4010">.format("delta") · .mode("append") · .save(bronze_path)</text>
+        <text x="430" y="588" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#7a4010">ACID transaction · schema validation · immutable log</text>
+
+        <line x1="430" y1="600" x2="430" y2="630" stroke="#3a4d65" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- END -->
+        <rect x="290" y="630" width="280" height="48" rx="24" fill="rgba(0,212,176,0.12)" stroke="#00d4b0" stroke-width="1.5"/>
+        <text x="430" y="650" text-anchor="middle" font-family="Syne, sans-serif" font-size="12" font-weight="700" fill="#00d4b0">✅ DADOS SALVOS</text>
+        <text x="430" y="666" text-anchor="middle" font-family="Space Mono" font-size="8" fill="#3a8a74">spark_catalog.bronze.cotacoes · pronto para análise</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 7: SCHEMA ─── -->
+<div class="section" id="schema">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">07</span>
+      <h2 class="sec-title">Schema da Tabela Bronze · cotacoes</h2>
+    </div>
+
+    <div class="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Coluna</th>
+            <th>Tipo Spark</th>
+            <th>Origem</th>
+            <th>Descrição</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="td-col">data</span></td>
+            <td><span class="td-type">TimestampType</span></td>
+            <td class="td-src">API → pd.to_datetime()</td>
+            <td class="td-desc">Data de negociação do pregão</td>
+          </tr>
+          <tr>
+            <td><span class="td-col">abertura</span></td>
+            <td><span class="td-type">DoubleType</span></td>
+            <td class="td-src">1. open</td>
+            <td class="td-desc">Preço de abertura do pregão (R$)</td>
+          </tr>
+          <tr>
+            <td><span class="td-col">alta</span></td>
+            <td><span class="td-type">DoubleType</span></td>
+            <td class="td-src">2. high</td>
+            <td class="td-desc">Preço máximo atingido no pregão (R$)</td>
+          </tr>
+          <tr>
+            <td><span class="td-col">baixa</span></td>
+            <td><span class="td-type">DoubleType</span></td>
+            <td class="td-src">3. low</td>
+            <td class="td-desc">Preço mínimo atingido no pregão (R$)</td>
+          </tr>
+          <tr>
+            <td><span class="td-col">fechamento</span></td>
+            <td><span class="td-type">DoubleType</span></td>
+            <td class="td-src">4. close</td>
+            <td class="td-desc">Preço de fechamento — referência para cálculo de retorno</td>
+          </tr>
+          <tr>
+            <td><span class="td-col">volume</span></td>
+            <td><span class="td-type">DoubleType</span></td>
+            <td class="td-src">5. volume</td>
+            <td class="td-desc">Volume financeiro negociado no pregão</td>
+          </tr>
+          <tr>
+            <td><span class="td-col">ticker</span></td>
+            <td><span class="td-type">StringType</span></td>
+            <td class="td-src">Engenharia</td>
+            <td class="td-desc">Código da ação na B3 (ex: PETR4)</td>
+          </tr>
+          <tr>
+            <td><span class="td-col">data_ingestao</span></td>
+            <td><span class="td-type">TimestampType</span></td>
+            <td class="td-src">datetime.now()</td>
+            <td class="td-desc">Timestamp de quando o registro foi ingerido — rastreabilidade</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-gold" style="margin-top:20px">
+      <h5>🧊 DELTA LAKE — VANTAGENS SOBRE PARQUET SIMPLES</h5>
+      <p>O formato Delta Lake adiciona ao Parquet: <strong style="color:var(--gold)">(1) ACID transactions</strong> — escrita atômica, sem dados corrompidos; <strong style="color:var(--gold)">(2) Time Travel</strong> — <code style="color:var(--teal)">VERSION AS OF N</code> para consultar versões anteriores; <strong style="color:var(--gold)">(3) Schema Evolution</strong> — adição de colunas sem reescrever a tabela; <strong style="color:var(--gold)">(4) OPTIMIZE + ZORDER</strong> — compactação de arquivos pequenos para melhor performance.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 8: ARQUITETURA ─── -->
+<div class="section section-alt">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">08</span>
+      <h2 class="sec-title">Arquitetura — Camadas do Pipeline</h2>
+    </div>
+
+    <div class="arch">
+      <div class="arch-layer" style="background:rgba(0,212,176,0.02)">
+        <div class="al-head">
+          <span class="al-badge" style="background:rgba(0,212,176,0.1);border-color:rgba(0,212,176,0.4);color:var(--teal)">SOURCE</span>
+          <div>
+            <div class="al-title">Fonte de Dados Externa</div>
+            <div class="al-desc">API pública com dados históricos de ações globais</div>
+          </div>
+        </div>
+        <div class="al-comps">
+          <div class="al-comp"><span class="ci">🌐</span><div><div class="cn">Alpha Vantage API</div><div class="cd">TIME_SERIES_DAILY · 100 dias · JSON</div></div></div>
+          <div class="al-comp"><span class="ci">📡</span><div><div class="cn">Sufixo .SA (B3)</div><div class="cd">PETR4.SA · VALE3.SA etc.</div></div></div>
+          <div class="al-comp"><span class="ci">🔑</span><div><div class="cn">API Key Auth</div><div class="cd">Gratuito: 25 req/dia · 5 req/min</div></div></div>
+        </div>
+      </div>
+
+      <div class="arch-layer" style="background:rgba(255,140,66,0.02)">
+        <div class="al-head">
+          <span class="al-badge" style="background:rgba(255,140,66,0.1);border-color:rgba(255,140,66,0.4);color:var(--orange)">INGEST</span>
+          <div>
+            <div class="al-title">Ingestão com Python + Pandas</div>
+            <div class="al-desc">Consumo HTTP, parsing JSON e modelagem inicial com Pandas</div>
+          </div>
+        </div>
+        <div class="al-comps">
+          <div class="al-comp"><span class="ci">🐍</span><div><div class="cn">requests</div><div class="cd">HTTP GET com params</div></div></div>
+          <div class="al-comp"><span class="ci">🐼</span><div><div class="cn">pandas.DataFrame</div><div class="cd">from_dict + astype + sort</div></div></div>
+          <div class="al-comp"><span class="ci">🕐</span><div><div class="cn">datetime.now()</div><div class="cd">Timestamp de ingestão</div></div></div>
+          <div class="al-comp"><span class="ci">🔄</span><div><div class="cn">Loop por ticker</div><div class="cd">5 ações em sequência</div></div></div>
+        </div>
+      </div>
+
+      <div class="arch-layer" style="background:rgba(76,142,255,0.02)">
+        <div class="al-head">
+          <span class="al-badge" style="background:rgba(76,142,255,0.1);border-color:rgba(76,142,255,0.4);color:var(--blue)">COMPUTE</span>
+          <div>
+            <div class="al-title">Processamento com PySpark</div>
+            <div class="al-desc">Conversão para DataFrame distribuído e escrita gerenciada</div>
+          </div>
+        </div>
+        <div class="al-comps">
+          <div class="al-comp"><span class="ci">⚡</span><div><div class="cn">SparkSession</div><div class="cd">getOrCreate() · Databricks</div></div></div>
+          <div class="al-comp"><span class="ci">🔀</span><div><div class="cn">createDataFrame()</div><div class="cd">Pandas → Spark · inferSchema</div></div></div>
+          <div class="al-comp"><span class="ci">📊</span><div><div class="cn">Spark SQL</div><div class="cd">Análise analítica avançada</div></div></div>
+        </div>
+      </div>
+
+      <div class="arch-layer" style="background:rgba(232,184,75,0.02)">
+        <div class="al-head">
+          <span class="al-badge" style="background:rgba(232,184,75,0.1);border-color:rgba(232,184,75,0.4);color:var(--gold)">STORAGE</span>
+          <div>
+            <div class="al-title">Persistência em Delta Lake</div>
+            <div class="al-desc">Armazenamento ACID com time travel e versionamento</div>
+          </div>
+        </div>
+        <div class="al-comps">
+          <div class="al-comp"><span class="ci">🔶</span><div><div class="cn">Delta Lake</div><div class="cd">ACID · APPEND · OPTIMIZE</div></div></div>
+          <div class="al-comp"><span class="ci">📂</span><div><div class="cn">DBFS / S3</div><div class="cd">dbfs:/FileStore/cotacoes/bronze/</div></div></div>
+          <div class="al-comp"><span class="ci">🗃️</span><div><div class="cn">Spark Catalog</div><div class="cd">spark_catalog.bronze.cotacoes</div></div></div>
+          <div class="al-comp"><span class="ci">📜</span><div><div class="cn">Transaction Log</div><div class="cd">_delta_log/ · versionamento</div></div></div>
+        </div>
+      </div>
+
+      <div class="arch-layer" style="background:rgba(155,109,255,0.02)">
+        <div class="al-head">
+          <span class="al-badge" style="background:rgba(155,109,255,0.1);border-color:rgba(155,109,255,0.4);color:var(--purple)">ANALYTICS</span>
+          <div>
+            <div class="al-title">Visualização e Análise</div>
+            <div class="al-desc">Consultas SQL sobre a tabela Bronze para insights de mercado</div>
+          </div>
+        </div>
+        <div class="al-comps">
+          <div class="al-comp"><span class="ci">📈</span><div><div class="cn">spark.sql()</div><div class="cd">Médias · máximos · mínimos</div></div></div>
+          <div class="al-comp"><span class="ci">📊</span><div><div class="cn">Window Functions</div><div class="cd">ROW_NUMBER · LAG · PARTITION BY</div></div></div>
+          <div class="al-comp"><span class="ci">🖥️</span><div><div class="cn">Databricks Display</div><div class="cd">display(df) · gráficos nativos</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 9: BENEFÍCIOS ─── -->
+<div class="section" id="beneficios">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-num">09</span>
+      <h2 class="sec-title">Benefícios Pedagógicos & Técnicos</h2>
+    </div>
+
+    <div class="ben-grid">
+      <div class="ben-card">
+        <div class="ben-accent" style="background:linear-gradient(90deg, var(--teal), transparent)"></div>
+        <div class="ben-icon">🔍</div>
+        <div class="ben-title">Transparência do Processo</div>
+        <div class="ben-desc">Cada etapa é visível e explícita: da requisição HTTP ao arquivo Delta. Não há "magia" — alunos compreendem exatamente onde os dados estão e como foram transformados em cada passo.</div>
+      </div>
+      <div class="ben-card">
+        <div class="ben-accent" style="background:linear-gradient(90deg, var(--blue), transparent)"></div>
+        <div class="ben-icon">⚡</div>
+        <div class="ben-title">Escalabilidade com Big Data</div>
+        <div class="ben-desc">A conversão de Pandas para PySpark demonstra como o mesmo código se adapta de um único laptop a um cluster com centenas de nós — preparando para workloads de nível produção.</div>
+      </div>
+      <div class="ben-card">
+        <div class="ben-accent" style="background:linear-gradient(90deg, var(--orange), transparent)"></div>
+        <div class="ben-icon">🔶</div>
+        <div class="ben-title">Persistência Inteligente</div>
+        <div class="ben-desc">Delta Lake introduz conceitos de Data Engineering moderno: ACID, time travel, schema evolution e compactação — habilidades diretamente aplicáveis em ambientes cloud reais (AWS, Azure, GCP).</div>
+      </div>
+      <div class="ben-card">
+        <div class="ben-accent" style="background:linear-gradient(90deg, var(--purple), transparent)"></div>
+        <div class="ben-icon">🏗️</div>
+        <div class="ben-title">Padrões de Mercado</div>
+        <div class="ben-desc">A separação em Config + Bronze + Visualização reflete a Medallion Architecture usada por empresas como Databricks, Netflix e LinkedIn — construindo intuição para arquiteturas de Data Lake enterprise.</div>
+      </div>
+      <div class="ben-card">
+        <div class="ben-accent" style="background:linear-gradient(90deg, var(--gold), transparent)"></div>
+        <div class="ben-icon">🌐</div>
+        <div class="ben-title">Contexto Real (B3)</div>
+        <div class="ben-desc">Trabalhar com dados reais de ações brasileiras (PETR4, VALE3, ITUB4…) cria engajamento imediato e permite validação intuitiva — alunos podem verificar os dados no dia a dia do mercado.</div>
+      </div>
+      <div class="ben-card">
+        <div class="ben-accent" style="background:linear-gradient(90deg, var(--green), transparent)"></div>
+        <div class="ben-icon">🔄</div>
+        <div class="ben-title">Pipeline Evolutivo</div>
+        <div class="ben-desc">O projeto serve como base para evoluções: adicionar camada Silver (limpeza, normalização), Gold (métricas de mercado), alertas automáticos, ou migração para AWS Glue + Redshift.</div>
+      </div>
+    </div>
+
+    <div class="callout callout-teal" style="margin-top:32px">
+      <h5>🚀 PRÓXIMOS PASSOS SUGERIDOS</h5>
+      <p>
+        <strong style="color:var(--text)">Silver Layer</strong>: Normalização de valores, tratamento de splits e proventos, cálculo de retornos diários e médias móveis (MA20, MA50) via PySpark Window Functions.<br><br>
+        <strong style="color:var(--text)">Gold Layer</strong>: Métricas agregadas por ticker — Sharpe Ratio, Volatilidade Histórica, Máximo Drawdown — prontas para dashboards executivos.<br><br>
+        <strong style="color:var(--text)">Orquestração</strong>: Agendamento diário com <strong style="color:var(--teal)">Apache Airflow</strong> ou <strong style="color:var(--teal)">Databricks Workflows</strong> para execução automática após o fechamento do pregão às 17h.
+      </p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="ftr">
+      <span>PROJETO · INGESTÃO B3 · PYSPARK + DELTA LAKE · 2025</span>
+      <span>ALPHA VANTAGE API · DATABRICKS · MEDALLION ARCHITECTURE</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

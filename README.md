@@ -199,7 +199,7 @@ O projeto segue **Spec-Driven Development** — cada camada tem um `SPEC.md` com
 ## Autor
 
 **Fabio Estevam**  
-Engenheiro de Dados | [LinkedIn](https://linkedin.com/in/fabioestevam) | [GitHub](https://github.com/fabioestevam2404)
+Engenheiro de Dados | [LinkedIn](https://linkedin.com/in/fabioestevam2404) | [GitHub](https://github.com/fabioestevam2404)
 
 ---
 
